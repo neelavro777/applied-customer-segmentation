@@ -71,20 +71,24 @@ archetypes:
 
 Here are the actual numbers from this project's trained model. The
 "centroid" is the average customer in that segment. R, F, and M are the
-three input features explained in the next section.
+three input features explained in the next section. The "Share" column
+tells you what percentage of all 4,338 customers fall into each segment,
+which matters when you are allocating marketing budget across groups.
 
 | Segment | Customers | Share | Recency (days) | Frequency (purchases) | Monetary (dollars) |
 |---|---|---|---|---|---|
-| Champions | 443 | 10% | 9.5 | 249 | 4,927 |
-| Loyal Customers | 596 | 14% | 12.3 | 74 | 1,106 |
-| Potential Loyalists | 566 | 13% | 30.6 | 16 | 293 |
-| At Risk | 755 | 17% | 100.0 | 56 | 993 |
-| Hibernating | 676 | 16% | 206.8 | 10 | 204 |
+| Champions | 629 | 14.5% | 9.5 | 249 | 4,927 |
+| Loyal Customers | 866 | 20.0% | 12.3 | 74 | 1,106 |
+| Potential Loyalists | 788 | 18.2% | 30.6 | 16 | 293 |
+| At Risk | 1,094 | 25.2% | 100.0 | 56 | 993 |
+| Hibernating | 961 | 22.2% | 206.8 | 10 | 204 |
 
 Champions bought just 9 days ago on average, placed 249 orders, and spent
 nearly $5,000. Hibernating customers last bought 207 days ago, placed only
 10 orders, and spent $204. The gap between these two groups is enormous,
-and they clearly need different marketing treatment.
+and they clearly need different marketing treatment. At Risk is the largest
+segment at 25% of the customer base, which means a quarter of all
+customers are slipping away and need attention.
 
 If the model produces more or fewer groups on a different dataset, the
 segment set adapts automatically. If a density-based model flags points
@@ -350,22 +354,23 @@ aspects of behavior should contribute to the segment assignment.
 ![RFM Correlation](assets/rfm_correlation.png)
 
 The heatmap above shows the Pearson correlation coefficient between each
-pair of features, ranging from -1 (perfect negative correlation) to +1
-(perfect positive correlation). Red means positive correlation, blue means
-negative.
+pair of features in log-space, ranging from -1 (perfect negative
+correlation) to +1 (perfect positive correlation). Red means positive
+correlation, blue means negative.
 
-Frequency and Monetary have a correlation of 0.55. This makes intuitive
-sense: customers who buy more often tend to spend more in total. Recency
-has weak negative correlations with both Frequency (-0.10) and Monetary
-(-0.11), meaning customers who have not bought recently tend to have
-slightly fewer purchases and slightly lower spend, but the relationship is
-not strong.
+Frequency and Monetary have a correlation of 0.76, which is strong.
+Customers who buy more often tend to spend more in total, and the
+relationship is clear in the heatmap. Recency has moderate negative
+correlations with both Frequency (-0.50) and Monetary (-0.49), meaning
+customers who have not bought recently tend to have fewer purchases and
+lower spend. The relationship is not as strong as the Frequency-Monetary
+link, but it is meaningful.
 
 If two features were perfectly correlated (correlation of 1.0), they would
 carry identical information, and one would be redundant. Here, the
-correlations are moderate, which means each feature contributes some unique
-information. Recency, Frequency, and Monetary are all worth keeping. None
-is redundant.
+correlations are moderate to strong but not perfect, which means each
+feature contributes some unique information. Recency, Frequency, and
+Monetary are all worth keeping. None is redundant.
 
 ---
 
@@ -402,19 +407,19 @@ blindly trusting one algorithm.
 
 ### K-Means (custom PyTorch implementation)
 
-**How it works:** You tell it how many clusters you want (K). It randomly
-places K centroids in the feature space, then repeats two steps until the
-centroids stop moving:
+You tell K-Means how many clusters you want (K). It randomly places K
+centroids in the feature space, then repeats two steps until the centroids
+stop moving:
 1. Assign each customer to the nearest centroid.
 2. Move each centroid to the average position of all customers assigned
    to it.
 
-**Why use it:** K-Means is the most widely used clustering algorithm for a
-reason. It is fast, simple, and interpretable. The centroid of each cluster
-is literally the "average customer" in that group, which makes it easy to
-understand and name segments. It also has a clean `predict` method: given a
-new customer's RFM values, you can immediately assign them to an existing
-cluster without retraining.
+K-Means is the most widely used clustering algorithm for a reason. It is
+fast, simple, and interpretable. The centroid of each cluster is literally
+the "average customer" in that group, which makes it easy to understand and
+name segments. It also has a clean `predict` method: given a new customer's
+RFM values, you can immediately assign them to an existing cluster without
+retraining.
 
 **Assumptions and limitations:** K-Means assumes clusters are roughly
 spherical and similarly sized. It requires you to choose K in advance. It
@@ -422,23 +427,23 @@ is sensitive to outliers (though the log transform mitigates this). It uses
 Euclidean distance, which assumes all dimensions matter equally (which is
 why standardization is essential).
 
-**Why a custom PyTorch implementation?** The standard scikit-learn K-Means
-is perfectly good for this dataset size. The custom implementation was
-built to demonstrate understanding of the algorithm and to leverage GPU
-acceleration via PyTorch. For larger datasets, the GPU version would be
-meaningfully faster. For this project, both produce the same result.
+The standard scikit-learn K-Means is perfectly good for this dataset size.
+The custom implementation was built to demonstrate understanding of the
+algorithm and to leverage GPU acceleration via PyTorch. For larger
+datasets, the GPU version would be meaningfully faster. For this project,
+both produce the same result.
 
 ### DBSCAN (Density-Based Spatial Clustering of Applications with Noise)
 
-**How it works:** DBSCAN does not take a number of clusters as input.
-Instead, it takes two parameters: `eps` (a distance threshold) and
-`min_samples` (a minimum number of points). It groups together points that
-are packed densely enough. Any point that does not have enough neighbors
-within `eps` distance is labeled as noise (outlier).
+DBSCAN does not take a number of clusters as input. Instead, it takes two
+parameters: `eps` (a distance threshold) and `min_samples` (a minimum
+number of points). It groups together points that are packed densely
+enough. Any point that does not have enough neighbors within `eps` distance
+is labeled as noise (outlier).
 
-**Why use it:** DBSCAN can find clusters of arbitrary shape, not just
-spheres. It does not require you to guess the number of clusters. It
-automatically flags outliers, which K-Means cannot do.
+DBSCAN can find clusters of arbitrary shape, not just spheres. It does not
+require you to guess the number of clusters. It automatically flags
+outliers, which K-Means cannot do.
 
 **Assumptions and limitations:** DBSCAN assumes clusters are separated by
 regions of lower density. If clusters have different densities (some tight,
@@ -451,23 +456,23 @@ classify new customers in real time.
 
 ### Gaussian Mixture Model (GMM)
 
-**How it works:** A GMM assumes the data was generated by a mixture of
-several Gaussian (normal) distributions. It uses the Expectation-Maximization
-algorithm to estimate the parameters (mean and covariance) of each
-Gaussian. Instead of a hard cluster assignment, it gives a probability of
-belonging to each cluster.
+A GMM assumes the data was generated by a mixture of several Gaussian
+(normal) distributions. It uses the Expectation-Maximization algorithm to
+estimate the parameters (mean and covariance) of each Gaussian. Instead of
+a hard cluster assignment, it gives a probability of belonging to each
+cluster.
 
-**Why use it:** GMM is more flexible than K-Means. It can model elliptical
-clusters (not just spheres) because it estimates a full covariance matrix.
-It gives soft assignments (probabilities), which can be useful when a
-customer is on the boundary between two segments.
+GMM is more flexible than K-Means. It can model elliptical clusters (not
+just spheres) because it estimates a full covariance matrix. It gives soft
+assignments (probabilities), which can be useful when a customer is on the
+boundary between two segments.
 
 **Assumptions and limitations:** GMM assumes each cluster follows a
 Gaussian distribution. If the data does not look Gaussian (even after log
 transform), the model may fit poorly. It also requires choosing the number
 of components in advance, just like K-Means. The soft assignments, while
-informative, are harder to communicate to a non-technical user who just
-wants to know "which segment is this customer in?"
+informative, are harder to communicate to a user who just wants to know
+"which segment is this customer in?"
 
 ---
 
@@ -528,26 +533,24 @@ of the data itself.
 
 ### Silhouette Score
 
-**What it measures:** For each customer, it compares two distances:
+For each customer, the silhouette score compares two distances:
 - a: the average distance from this customer to all other customers in the
   same cluster (how tight the cluster is).
 - b: the average distance from this customer to all customers in the
   nearest other cluster (how far away the neighboring cluster is).
 
-The silhouette value for that customer is (b - a) / max(a, b). This ranges
+The silhouette value for that customer is (b - a) / max(a, b), which ranges
 from -1 to 1. The overall score is the average across all customers.
 
-**How to interpret the number:**
-- Near 1: customers are much closer to their own cluster than to any
-  other. Clusters are well-separated.
-- Near 0: customers are on the boundary between two clusters. Clusters
-  overlap.
-- Negative: customers may be assigned to the wrong cluster.
+A score near 1 means customers are much closer to their own cluster than to
+any other, so the clusters are well-separated. A score near 0 means
+customers sit on the boundary between two clusters, so the clusters
+overlap. A negative score means customers may be assigned to the wrong
+cluster.
 
-**Why we chose it:** The silhouette score captures both compactness and
-separation in a single number. It is intuitive (higher is better) and works
-for any clustering algorithm. It is the most widely used intrinsic metric
-in practice.
+The silhouette score captures both compactness and separation in a single
+number, works for any clustering algorithm, and is the most widely used
+intrinsic metric in practice.
 
 **What 0.298 means for this project:** A silhouette score of about 0.30
 indicates moderate separation. The clusters are distinct but not perfectly
@@ -559,19 +562,18 @@ above 0.50 are rare for this type of data.
 
 ### Davies-Bouldin Index
 
-**What it measures:** For each pair of clusters, it computes a ratio of
+For each pair of clusters, the Davies-Bouldin index computes a ratio of
 within-cluster scatter (how spread out each cluster is) to between-cluster
 distance (how far apart the cluster centers are). The index is the average
 of the worst-case ratios across all clusters.
 
-**How to interpret the number:** Lower is better. A value of 0 means
-perfectly separated clusters. Values above 2 indicate significant overlap.
-
-**Why we chose it:** The Davies-Bouldin index complements the silhouette
-score. It focuses on the relationship between cluster scatter and
-separation rather than individual point distances. Using both metrics gives
-a more robust assessment than relying on either one alone. If both metrics
-agree that one model is better, we can be more confident in the choice.
+A lower value is better. Zero would mean perfectly separated clusters.
+Values above 2 indicate significant overlap. The Davies-Bouldin index
+complements the silhouette score because it focuses on the relationship
+between cluster scatter and separation rather than individual point
+distances. Using both metrics together gives a more robust assessment than
+relying on either one alone. If both agree that one model is better, there
+is more confidence in the choice.
 
 **What 1.07 means for this project:** A Davies-Bouldin index of about 1.07
 confirms moderate separation. The clusters have some spread and are not
@@ -776,22 +778,23 @@ the full dataset.
 
 ![Cluster Sizes](assets/cluster_sizes.png)
 
-What you are looking at: a bar chart showing how many customers fall into
-each segment, with the count and percentage labeled on top of each bar.
+The bar chart above shows how many customers fall into each segment, with
+the count and percentage labeled on top of each bar.
 
-How to read it: the segments are not evenly sized, and they should not be.
-K-Means does not try to create equal-sized groups. It tries to create
-behaviorally coherent groups, and in real data, behavior is not evenly
-distributed. The largest segment (At Risk, 755 customers, 17%) contains
-people who used to be good customers but have not returned recently. The
-smallest (Champions, 443 customers, 10%) contains the top tier.
+The segments are not evenly sized, and they should not be. K-Means does not
+try to create equal-sized groups. It tries to create behaviorally coherent
+groups, and in real data, behavior is not evenly distributed. At Risk is
+the largest segment at 1,094 customers (25%), containing people who used to
+be good customers but have not returned recently. Champions is the smallest
+at 629 customers (14.5%), the top tier. Hibernating accounts for 961
+customers (22%), Loyal Customers for 866 (20%), and Potential Loyalists for
+788 (18%).
 
-Why this matters for business planning: if you are allocating marketing
-budget, the segment sizes tell you how many people each campaign will
-reach. Champions are only 10% of customers, but they likely generate a
-disproportionate share of revenue. At Risk is 17% of customers, and
-winning back even a fraction of them could be valuable. Hibernating is
-16%, but the expected return per customer is low, so you would spend less
+When allocating marketing budget, these sizes tell you how many people each
+campaign will reach. Champions are only 14.5% of customers, but they likely
+generate a disproportionate share of revenue. At Risk is 25% of customers,
+and winning back even a fraction of them could be valuable. Hibernating is
+22%, but the expected return per customer is low, so you would spend less
 per person on that group.
 
 ---
