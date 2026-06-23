@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SegmentAI - Customer Segmentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="bg-fx">
+        <div class="blob b1"></div>
+        <div class="blob b2"></div>
+        <div class="blob b3"></div>
+    </div>
+
+    <div class="page">
+        <header class="hero">
+            <div class="brand">
+                <h1>Segment<span>AI</span></h1>
+                <span class="badge">Customer Insights</span>
+            </div>
+            <p class="tagline">Type in a customer's buying history. Get a plain-English summary of who they are, how much they're worth, and exactly what to do next.</p>
+        </header>
+
+        <section class="metrics-strip">
+            <div class="metric"><span class="m-label">Model in use</span><span class="m-value small">{{ model_display|default('-') }}</span></div>
+            <div class="metric"><span class="m-label">Customer groups</span><span class="m-value">{{ n_clusters|default(0) }}</span></div>
+            <div class="metric"><span class="m-label">Customers learned</span><span class="m-value">{{ n_customers|default(0) }}</span></div>
+            <div class="metric"><span class="m-label">Separation quality</span><span class="m-value">{{ '%.2f'|format(silhouette|default(0)) }}</span></div>
+        </section>
+
+        <main class="grid">
+            <!-- LEFT: Input -->
+            <div class="card form-card">
+                <h2>Check a customer</h2>
+                <p class="card-sub">Fill in 3 numbers about their purchases, or pick an example below.</p>
+
+                <div class="presets">
+                    {% for p in presets %}
+                    <button type="button" class="chip" data-r="{{ p.recency }}" data-f="{{ p.frequency }}" data-m="{{ p.monetary }}">{{ p.label }}</button>
+                    {% endfor %}
+                </div>
+
+                <form id="predict-form" action="/predict" method="POST">
+                    <div class="field">
+                        <label for="recency">Days since their last purchase</label>
+                        <input type="number" id="recency" name="recency" value="{{ recency if recency is defined else '' }}" min="0" required placeholder="e.g. 15">
+                        <span class="hint">Lower = they bought from you recently.</span>
+                    </div>
+                    <div class="field">
+                        <label for="frequency">How many times they've bought</label>
+                        <input type="number" id="frequency" name="frequency" value="{{ frequency if frequency is defined else '' }}" min="0" required placeholder="e.g. 5">
+                        <span class="hint">Higher = they're a regular.</span>
+                    </div>
+                    <div class="field">
+                        <label for="monetary">Total money they've spent ($)</label>
+                        <input type="number" step="0.01" id="monetary" name="monetary" value="{{ monetary if monetary is defined else '' }}" min="0" required placeholder="e.g. 500.50">
+                        <span class="hint">Higher = more valuable to your business.</span>
+                    </div>
+                    <button type="submit" class="primary-btn" id="submit-btn">What kind of customer is this?</button>
+                </form>
+            </div>
+
+            <!-- RIGHT: Result -->
+            <div class="card result-card">
+                {% if segment_name is defined %}
+
+                <div class="result-head">
+                    <div class="result-badge">
+                        <div class="seg-titles">
+                            <span class="seg-name">{{ segment_name }}</span>
+                            <span class="seg-id">Group {{ cluster_id }}</span>
+                        </div>
+                    </div>
+                    <div class="confidence">
+                        <span class="conf-label">How sure we are</span>
+                        <span class="conf-val">{{ confidence }}%</span>
+                    </div>
+                </div>
+
+                <p class="who">{{ who }}</p>
+
+                <div class="badges">
+                    <div class="badge-pill risk">
+                        <span class="bp-label">Risk of leaving</span>
+                        <span class="bp-value risk-{{ churn_risk|lower|replace(' ', '-')|replace('-', '-') }}">{{ churn_risk }}</span>
+                    </div>
+                    <div class="badge-pill value">
+                        <span class="bp-label">Value to you</span>
+                        <span class="bp-value">{{ customer_value }}</span>
+                    </div>
+                </div>
+
+                <div class="compare-box">
+                    <h4>How this customer compares to a typical {{ segment_name }}</h4>
+                    <ul class="compare-list">
+                        {% for c in comparisons %}
+                        <li>{{ c }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="action-box">
+                    <h4>What to do with this customer</h4>
+                    <ul class="action-list">
+                        {% for a in actions %}
+                        <li>{{ a }}</li>
+                        {% endfor %}
+                    </ul>
+                    <div class="tactic"><strong>Bottom line:</strong> {{ tactic }}</div>
+                </div>
+
+                <details class="charts-details">
+                    <summary>See the data behind this (charts)</summary>
+                    <div class="result-grid">
+                        <div class="chart-box">
+                            <h4>This customer vs the group average</h4>
+                            <canvas id="radarChart" height="240"></canvas>
+                        </div>
+                        <div class="chart-box">
+                            <h4>How close they are to every group</h4>
+                            <canvas id="distChart" height="240"></canvas>
+                        </div>
+                    </div>
+                </details>
+
+                {% elif error is defined %}
+                <div class="error-box">
+                    <h3>Something went wrong</h3>
+                    <p>{{ error }}</p>
+                    <p class="hint">A technical user should run <code>python -m src.pipeline.training_pipeline</code> first to teach the system about your customers.</p>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">?</div>
+                    <h3>No customer checked yet</h3>
+                    <p>Fill in the 3 numbers on the left and tap <strong>"What kind of customer is this?"</strong></p>
+                    <p class="hint">You'll get a simple explanation of who they are and what to do next - no math required.</p>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+
+        <footer>
+            <span>SegmentAI</span>
+            <span class="dot"></span>
+            <span>Built for business teams, powered by machine learning</span>
+        </footer>
+    </div>
+
+    {% if segment_name is defined %}
+    <script id="result-data" type="application/json">
+    {
+        "norm_input": {{ norm_input|tojson }},
+        "norm_centroid": {{ norm_centroid|tojson }},
+        "per_cluster": {{ per_cluster|tojson }}
+    }
+    </script>
+    {% endif %}
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

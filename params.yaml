@@ -1,0 +1,14 @@
+KMeans:
+  n_clusters: 5
+  init: k-means++
+  random_state: 42
+  max_iters: 300
+
+DBSCAN:
+  eps: 0.5
+  min_samples: 5
+
+GMM:
+  n_components: 5
+  random_state: 42
+  covariance_type: full
