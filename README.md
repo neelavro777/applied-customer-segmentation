@@ -2,8 +2,7 @@
 
 Type in three numbers about a customer's purchase history. Get back an
 answer: who they are, how much they are worth to your business, how likely
-they are to leave, and exactly what to do next. No statistics degree
-required.
+they are to leave, and exactly what to do next.
 
 This project turns raw transaction data into actionable customer segments
 using unsupervised machine learning. It trains three different clustering
