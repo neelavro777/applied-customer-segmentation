@@ -1,0 +1,14 @@
+venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+artifacts/*/
+!artifacts/data/
+mlruns/
+mlflow.db
+*.pkl
+assets/
